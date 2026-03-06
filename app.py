@@ -6,7 +6,7 @@ import os
 import base64
 from fpdf import FPDF
 
-# Configuração da página (Com o Ícone de Escudo na aba do navegador)
+# Configuração da página
 st.set_page_config(page_title="Compliance | Painel", page_icon="🛡️", layout="wide")
 
 # --- ESTILO PREMIUM (CSS Personalizado) ---
@@ -23,16 +23,7 @@ st.markdown("""
             padding: 15px;
             box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.05);
             transition: transform 0.2s;
-            border-left: 5px solid #1f2937; /* Detalhe em cinza escuro/chumbo corporativo */
-        }
-        
-        /* Ajuste do modo escuro para os cartões de métricas */
-        @media (prefers-color-scheme: dark) {
-            div[data-testid="metric-container"] {
-                background-color: #1e293b;
-                border-color: #334155;
-                border-left: 5px solid #f59e0b; /* Dourado no modo escuro */
-            }
+            border-left: 5px solid #1f2937;
         }
         
         div[data-testid="metric-container"]:hover {
@@ -42,13 +33,80 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- CABEÇALHO PRINCIPAL ---
+# --- SISTEMA DE LOGIN CENTRALIZADO (ACESSO RESTRITO) ---
+if "autenticado" not in st.session_state:
+    st.session_state["autenticado"] = False
+
+if not st.session_state["autenticado"]:
+    
+    col1, col2, col3 = st.columns([1, 1.5, 1]) 
+    
+    with col2:
+        st.write("") 
+        st.write("") 
+
+        # --- CORREÇÃO DA LOGO (EMPURRANDO MANUALMENTE PARA A DIREITA) ---
+        if os.path.exists("logo_light.png") and os.path.exists("logo_dark.png"):
+            with open("logo_light.png", "rb") as f:
+                img_light = base64.b64encode(f.read()).decode()
+            with open("logo_dark.png", "rb") as f:
+                img_dark = base64.b64encode(f.read()).decode()
+                
+            st.markdown(f"""
+                <div>
+                    <style>
+                        .img-logo-login {{ 
+                            max-width: 250px; 
+                            height: auto; 
+                            /* ⬇️ AQUI ESTÁ O SEU CONTROLE MANUAL ⬇️ */
+                            /* Aumente este número para empurrar mais pra direita */
+                            margin-left: 100px; 
+                        }}
+                        .modo-claro {{ display: block; }}
+                        .modo-escuro {{ display: none; }}
+                        @media (prefers-color-scheme: dark) {{
+                            .modo-claro {{ display: none !important; }}
+                            .modo-escuro {{ display: block !important; }}
+                        }}
+                    </style>
+                    <img src="data:image/png;base64,{img_light}" class="img-logo-login modo-claro">
+                    <img src="data:image/png;base64,{img_dark}" class="img-logo-login modo-escuro">
+                </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown("<div style='width: 100%; text-align: center; color: gray; margin-bottom: 20px;'>[ ESPAÇO PARA A SUA LOGO ]</div>", unsafe_allow_html=True)
+        # --- FIM DA CORREÇÃO ---
+
+        st.markdown("<h2 style='text-align: center;'>🔒 Acesso Restrito</h2>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center;'>Bem-vindo ao Sistema de Compliance. Por favor, insira as suas credenciais.</p>", unsafe_allow_html=True)
+        st.divider()
+        
+        usuario = st.text_input("Usuário")
+        senha = st.text_input("Senha", type="password") 
+        btn_login = st.button("Entrar no Sistema", use_container_width=True)
+        
+        if btn_login:
+            if usuario == st.secrets["USUARIO"] and senha == st.secrets["SENHA"]:
+                st.session_state["autenticado"] = True
+                st.rerun() 
+            else:
+                st.error("❌ Usuário ou senha incorretos.")
+    
+    st.stop() 
+
+
+# ==========================================
+# SEU CÓDIGO DO PAINEL COMEÇA A PARTIR DAQUI
+# ==========================================
+
+if st.sidebar.button("🚪 Sair do Sistema", use_container_width=True):
+    st.session_state["autenticado"] = False
+    st.rerun()
+
 st.title("⚖️ Sistema Analítico de Compliance")
 st.markdown("Monitorização de **Governança, Riscos e Conformidade (GRC)**")
 st.divider()
 
-# --- BARRA LATERAL (LOGÓTIPO QUE MUDA COM O TEMA) ---
-# Usando Base64 e CSS para alternar a logo nativamente entre Claro/Escuro
 if os.path.exists("logo_light.png") and os.path.exists("logo_dark.png"):
     with open("logo_light.png", "rb") as f:
         light_b64 = base64.b64encode(f.read()).decode()
@@ -57,25 +115,20 @@ if os.path.exists("logo_light.png") and os.path.exists("logo_dark.png"):
         
     st.sidebar.markdown(f"""
         <style>
-            .logo-light {{ display: block; width: 100%; margin-bottom: 15px; }}
-            .logo-dark {{ display: none; width: 100%; margin-bottom: 15px; }}
+            .logo-sidebar-light {{ display: block; width: 100%; margin-bottom: 15px; }}
+            .logo-sidebar-dark {{ display: none; width: 100%; margin-bottom: 15px; }}
             @media (prefers-color-scheme: dark) {{
-                .logo-light {{ display: none; }}
-                .logo-dark {{ display: block; }}
+                .logo-sidebar-light {{ display: none; }}
+                .logo-sidebar-dark {{ display: block; }}
             }}
         </style>
-        <img src="data:image/png;base64,{light_b64}" class="logo-light">
-        <img src="data:image/png;base64,{dark_b64}" class="logo-dark">
+        <img src="data:image/png;base64,{light_b64}" class="logo-sidebar-light">
+        <img src="data:image/png;base64,{dark_b64}" class="logo-sidebar-dark">
     """, unsafe_allow_html=True)
-else:
-    st.sidebar.info("💡 Guarde 'logo_light.png' e 'logo_dark.png' na pasta do projeto para exibir o logótipo.")
 
 st.sidebar.markdown("### 🛡️ Governança e Risco")
-st.sidebar.markdown("Faça o upload da base de dados atualizada para iniciar a análise.")
-
 ficheiro_upload = st.sidebar.file_uploader("Carregar ficheiro (.xlsx)", type=["xlsx"])
 
-# --- LÓGICA PRINCIPAL ---
 if ficheiro_upload is not None:
     
     @st.cache_data
@@ -130,16 +183,13 @@ if ficheiro_upload is not None:
             st.markdown("**Volume de Pedidos por Área**")
             dados_area = df_filtrado["Area Demandante"].value_counts().reset_index()
             dados_area.columns = ['Area Demandante', 'Quantidade']
-            # Mudando a cor do gráfico para um tom mais corporativo (Chumbo/Azul Escuro)
             fig_area = px.bar(dados_area, x="Area Demandante", y="Quantidade", text_auto=True, color_discrete_sequence=['#374151'])
             st.plotly_chart(fig_area, use_container_width=True)
 
     with col_graf2:
         if "Risco_Tema" in df_filtrado.columns:
             st.markdown("**Mapeamento de Nível de Risco**")
-            # Paleta tradicional para riscos: Vermelho, Laranja, Verde, Azul, Roxo, Cinza
             cores_tradicionais = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#6b7280']
-            
             fig_risco = px.pie(df_filtrado, names="Risco_Tema", hole=0.4, color_discrete_sequence=cores_tradicionais)
             st.plotly_chart(fig_risco, use_container_width=True)
 
@@ -198,4 +248,4 @@ if ficheiro_upload is not None:
         )
 
 else:
-    st.info("👋 Bem-vindo ao sistema de auditoria contínua. Por favor, arraste o ficheiro de controlo (Excel) para a área de upload no menu lateral.")
+    st.info("👋 Bem-vindo ao sistema. Por favor, arraste o ficheiro de controlo (Excel) para a área de upload no menu lateral.")
