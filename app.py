@@ -82,7 +82,6 @@ if not st.session_state["autenticado"]:
         btn_login = st.button("Entrar no Sistema", use_container_width=True)
         
         if btn_login:
-            # Lendo a senha segura do Streamlit Cloud
             if usuario == st.secrets["USUARIO"] and senha == st.secrets["SENHA"]:
                 st.session_state["autenticado"] = True
                 st.rerun() 
@@ -137,25 +136,18 @@ if ficheiro_upload is not None:
     df = processar_planilha(ficheiro_upload)
     st.sidebar.divider()
     
-    # ==========================================
-    # NOVO: SISTEMA DE FILTROS DINÂMICOS
-    # ==========================================
+    # --- FILTROS DINÂMICOS ---
     st.sidebar.header("🔍 Filtros Dinâmicos")
     
-    # 1. Busca por Número do Processo (Fixo, porque é busca de texto livre)
-    filtro_num = st.sidebar.text_input("Procurar por Número de Processo (Opcional)")
+    filtro_num = st.sidebar.text_input("Procurar por texto/número (Opcional)")
     df_filtrado = df.copy()
     
     if filtro_num and "Num_Processo" in df_filtrado.columns:
         df_filtrado = df_filtrado[df_filtrado["Num_Processo"].astype(str).str.contains(filtro_num, case=False, na=False)]
 
-    # 2. Descobre todas as colunas que existem na planilha
     todas_as_colunas = df.columns.tolist()
-    
-    # Tenta pré-selecionar as colunas antigas, se elas existirem no arquivo
     colunas_sugeridas = [col for col in ["TIPO DOCUMENTO", "Area Demandante", "Status", "Risco_Tema", "Resultado"] if col in todas_as_colunas]
 
-    # 3. O usuário escolhe quais colunas quer transformar em filtro!
     colunas_escolhidas = st.sidebar.multiselect(
         "⚙️ Escolha as colunas para filtrar:", 
         options=todas_as_colunas, 
@@ -164,44 +156,56 @@ if ficheiro_upload is not None:
     
     st.sidebar.markdown("---")
 
-    # 4. Cria os filtros reais baseado no que o usuário escolheu acima
     for coluna in colunas_escolhidas:
         valores_unicos = df[coluna].dropna().unique().tolist()
         selecao_usuario = st.sidebar.multiselect(f"Filtrar por: {coluna}", valores_unicos)
         
-        # Se o usuário marcar algo no filtro, a tabela corta os dados
         if selecao_usuario:
             df_filtrado = df_filtrado[df_filtrado[coluna].isin(selecao_usuario)]
 
     # ==========================================
-    # FIM DOS FILTROS DINÂMICOS
+    # NOVO: GRÁFICOS E MÉTRICAS DINÂMICAS
     # ==========================================
+    st.markdown("### ⚙️ Personalizar Visuais")
+    col_cfg1, col_cfg2, col_cfg3 = st.columns(3)
+    
+    # Previne erros garantindo que existem colunas suficientes para selecionar
+    idx_barra = 1 if len(todas_as_colunas) > 1 else 0
+    idx_pizza = 2 if len(todas_as_colunas) > 2 else 0
+
+    with col_cfg1:
+        col_metrica = st.selectbox("📊 Métrica Adicional", todas_as_colunas, index=0)
+    with col_cfg2:
+        col_barra = st.selectbox("📊 Gráfico de Barras", todas_as_colunas, index=idx_barra)
+    with col_cfg3:
+        col_pizza = st.selectbox("🥧 Gráfico de Pizza", todas_as_colunas, index=idx_pizza)
 
     st.markdown("### 📈 Visão Estratégica")
     col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Total de Pareceres", len(df_filtrado))
-    col2.metric("Áreas Auditadas", df_filtrado.get("Area Demandante", pd.Series()).nunique())
-    col3.metric("Tipos de Documentos", df_filtrado.get("TIPO DOCUMENTO", pd.Series()).nunique())
-    col4.metric("Níveis de Risco", df_filtrado.get("Risco_Tema", pd.Series()).nunique())
+    
+    col1.metric("Total de Registros (Linhas)", len(df_filtrado))
+    col2.metric(f"Tipos de {col_metrica}", df_filtrado[col_metrica].nunique() if col_metrica else 0)
+    col3.metric(f"Tipos de {col_barra}", df_filtrado[col_barra].nunique() if col_barra else 0)
+    col4.metric(f"Tipos de {col_pizza}", df_filtrado[col_pizza].nunique() if col_pizza else 0)
 
     st.divider()
 
     col_graf1, col_graf2 = st.columns(2)
 
     with col_graf1:
-        if "Area Demandante" in df_filtrado.columns:
-            st.markdown("**Volume de Pedidos por Área**")
-            dados_area = df_filtrado["Area Demandante"].value_counts().reset_index()
-            dados_area.columns = ['Area Demandante', 'Quantidade']
-            fig_area = px.bar(dados_area, x="Area Demandante", y="Quantidade", text_auto=True, color_discrete_sequence=['#374151'])
-            st.plotly_chart(fig_area, use_container_width=True)
+        if col_barra:
+            st.markdown(f"**Distribuição por {col_barra}**")
+            dados_barra = df_filtrado[col_barra].value_counts().reset_index()
+            dados_barra.columns = [col_barra, 'Quantidade']
+            fig_barra = px.bar(dados_barra, x=col_barra, y="Quantidade", text_auto=True, color_discrete_sequence=['#374151'])
+            st.plotly_chart(fig_barra, use_container_width=True)
 
     with col_graf2:
-        if "Risco_Tema" in df_filtrado.columns:
-            st.markdown("**Mapeamento de Nível de Risco**")
+        if col_pizza:
+            st.markdown(f"**Proporção de {col_pizza}**")
             cores_tradicionais = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#6b7280']
-            fig_risco = px.pie(df_filtrado, names="Risco_Tema", hole=0.4, color_discrete_sequence=cores_tradicionais)
-            st.plotly_chart(fig_risco, use_container_width=True)
+            fig_pizza = px.pie(df_filtrado, names=col_pizza, hole=0.4, color_discrete_sequence=cores_tradicionais)
+            st.plotly_chart(fig_pizza, use_container_width=True)
 
     st.divider()
     
