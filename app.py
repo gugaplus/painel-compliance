@@ -33,7 +33,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- SISTEMA DE LOGIN CENTRALIZADO (ACESSO RESTRITO) ---
+# --- SISTEMA DE LOGIN CENTRALIZADO (COM SECRETS) ---
 if "autenticado" not in st.session_state:
     st.session_state["autenticado"] = False
 
@@ -45,7 +45,6 @@ if not st.session_state["autenticado"]:
         st.write("") 
         st.write("") 
 
-        # --- CORREÇÃO DA LOGO (EMPURRANDO MANUALMENTE PARA A DIREITA) ---
         if os.path.exists("logo_light.png") and os.path.exists("logo_dark.png"):
             with open("logo_light.png", "rb") as f:
                 img_light = base64.b64encode(f.read()).decode()
@@ -58,8 +57,6 @@ if not st.session_state["autenticado"]:
                         .img-logo-login {{ 
                             max-width: 250px; 
                             height: auto; 
-                            /* ⬇️ AQUI ESTÁ O SEU CONTROLE MANUAL ⬇️ */
-                            /* Aumente este número para empurrar mais pra direita */
                             margin-left: 100px; 
                         }}
                         .modo-claro {{ display: block; }}
@@ -75,7 +72,6 @@ if not st.session_state["autenticado"]:
             """, unsafe_allow_html=True)
         else:
             st.markdown("<div style='width: 100%; text-align: center; color: gray; margin-bottom: 20px;'>[ ESPAÇO PARA A SUA LOGO ]</div>", unsafe_allow_html=True)
-        # --- FIM DA CORREÇÃO ---
 
         st.markdown("<h2 style='text-align: center;'>🔒 Acesso Restrito</h2>", unsafe_allow_html=True)
         st.markdown("<p style='text-align: center;'>Bem-vindo ao Sistema de Compliance. Por favor, insira as suas credenciais.</p>", unsafe_allow_html=True)
@@ -86,6 +82,7 @@ if not st.session_state["autenticado"]:
         btn_login = st.button("Entrar no Sistema", use_container_width=True)
         
         if btn_login:
+            # Lendo a senha segura do Streamlit Cloud
             if usuario == st.secrets["USUARIO"] and senha == st.secrets["SENHA"]:
                 st.session_state["autenticado"] = True
                 st.rerun() 
@@ -96,7 +93,7 @@ if not st.session_state["autenticado"]:
 
 
 # ==========================================
-# SEU CÓDIGO DO PAINEL COMEÇA A PARTIR DAQUI
+# SEU CÓDIGO DO PAINEL (PROTEGIDO)
 # ==========================================
 
 if st.sidebar.button("🚪 Sair do Sistema", use_container_width=True):
@@ -140,32 +137,45 @@ if ficheiro_upload is not None:
     df = processar_planilha(ficheiro_upload)
     st.sidebar.divider()
     
-    st.sidebar.header("🔍 Filtros Avançados")
-    filtro_num = st.sidebar.text_input("Procurar por Número de Processo")
+    # ==========================================
+    # NOVO: SISTEMA DE FILTROS DINÂMICOS
+    # ==========================================
+    st.sidebar.header("🔍 Filtros Dinâmicos")
     
-    def pegar_unicos(coluna):
-        return df[coluna].dropna().unique() if coluna in df.columns else []
-
-    filtro_tipo = st.sidebar.multiselect("Tipo de Documento", pegar_unicos("TIPO DOCUMENTO"))
-    filtro_area = st.sidebar.multiselect("Área Requerente", pegar_unicos("Area Demandante"))
-    filtro_status = st.sidebar.multiselect("Estado (Status)", pegar_unicos("Status"))
-    filtro_risco = st.sidebar.multiselect("Risco do Tema", pegar_unicos("Risco_Tema"))
-    filtro_resultado = st.sidebar.multiselect("Resultado", pegar_unicos("Resultado"))
-
+    # 1. Busca por Número do Processo (Fixo, porque é busca de texto livre)
+    filtro_num = st.sidebar.text_input("Procurar por Número de Processo (Opcional)")
     df_filtrado = df.copy()
-
+    
     if filtro_num and "Num_Processo" in df_filtrado.columns:
         df_filtrado = df_filtrado[df_filtrado["Num_Processo"].astype(str).str.contains(filtro_num, case=False, na=False)]
-    if filtro_tipo:
-        df_filtrado = df_filtrado[df_filtrado["TIPO DOCUMENTO"].isin(filtro_tipo)]
-    if filtro_area:
-        df_filtrado = df_filtrado[df_filtrado["Area Demandante"].isin(filtro_area)]
-    if filtro_status:
-        df_filtrado = df_filtrado[df_filtrado["Status"].isin(filtro_status)]
-    if filtro_risco:
-        df_filtrado = df_filtrado[df_filtrado["Risco_Tema"].isin(filtro_risco)]
-    if filtro_resultado:
-        df_filtrado = df_filtrado[df_filtrado["Resultado"].isin(filtro_resultado)]
+
+    # 2. Descobre todas as colunas que existem na planilha
+    todas_as_colunas = df.columns.tolist()
+    
+    # Tenta pré-selecionar as colunas antigas, se elas existirem no arquivo
+    colunas_sugeridas = [col for col in ["TIPO DOCUMENTO", "Area Demandante", "Status", "Risco_Tema", "Resultado"] if col in todas_as_colunas]
+
+    # 3. O usuário escolhe quais colunas quer transformar em filtro!
+    colunas_escolhidas = st.sidebar.multiselect(
+        "⚙️ Escolha as colunas para filtrar:", 
+        options=todas_as_colunas, 
+        default=colunas_sugeridas
+    )
+    
+    st.sidebar.markdown("---")
+
+    # 4. Cria os filtros reais baseado no que o usuário escolheu acima
+    for coluna in colunas_escolhidas:
+        valores_unicos = df[coluna].dropna().unique().tolist()
+        selecao_usuario = st.sidebar.multiselect(f"Filtrar por: {coluna}", valores_unicos)
+        
+        # Se o usuário marcar algo no filtro, a tabela corta os dados
+        if selecao_usuario:
+            df_filtrado = df_filtrado[df_filtrado[coluna].isin(selecao_usuario)]
+
+    # ==========================================
+    # FIM DOS FILTROS DINÂMICOS
+    # ==========================================
 
     st.markdown("### 📈 Visão Estratégica")
     col1, col2, col3, col4 = st.columns(4)
